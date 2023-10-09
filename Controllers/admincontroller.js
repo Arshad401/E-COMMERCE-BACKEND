@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const User = require("../Models/userschema");
 const Product = require("../Models/productschema");
 const jwt = require("jsonwebtoken");
-
+const { joiProductSchema } = require("../Models/joyValidationSchema");
 mongoose.connect("mongodb://0.0.0.0:27017/E-commerce-backend",{
   useNewUrlParser: true,
   useUnifiedTopology:true,
@@ -102,7 +102,7 @@ module.exports = {
        
      getProductById: async (req, res) => {
       const productId = req.params.id;
-      const product = await Product.findById(productId);
+      const product = await Product.findById(productId); 
       if (!product) {
         return res.status(404).json({ error: "User not found"});
       }
@@ -133,4 +133,92 @@ module.exports = {
     },
 
 
-}
+
+    // Update a product (PUT api/admin/products)
+
+
+    updateProduct: async (req,res) => {
+      const { title, description, image, price, category, id } = req.body;
+      const product = await Product.findById(id);
+      if (!product) {
+        return res.status(404).json({ error: "product not found" });
+      }
+      await Product.updateOne({ _id: id}, {$set: {
+        title: title,
+        description : description,
+        price: price,
+        image: image,
+        category: category,
+      }});
+      res.status(201).json({
+        status: "success",
+        message: "successfully updated the product.",
+      });
+    },
+
+
+    // Delete a product (DELETE api/admin/products)
+
+
+    deleteProduct : async (req,res) => {
+      const { id } = req.body;
+      await Product.findByIdAndDelete(id);
+      res.status(201).json({
+        status:  "success",
+        message: "successfully deleted the product.",
+      });
+    },
+
+
+
+
+    // Get stats (GET api/admin/stats)
+
+
+    stats: async (req, res) => {
+      const aggregation = User.aggregate([
+        {
+          $unwind: "$orders",
+        },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: "$orders.totalamount" },
+            totalItemsSold: { $sum: { $size: "$orders.product" } },
+          },
+        },
+      ]);
+      const result = await aggregation.exec();
+      const totalRevenue = result[0].totalRevenue;
+      const totalItemsSold = result[0].totalItemsSold;
+
+        res.status(200).json({
+          status: "success",
+          message: "successfully fetched stats.",
+          data: {
+            "Total Revenue" : totalRevenue,
+            "Total Items Sold" : totalItemsSold,
+          },
+        });
+      },
+
+
+
+    // Get the list of order details. (GET api/admin/orders)
+
+
+    orders: async (req, res) => {
+      const order = await User.find({ orders: { $exists: true }}, {orders:1});
+      const orders = order.filter((item) => {
+        return item.orders.length >0;
+      });
+
+      res.status(200).json({
+        status: "success",
+        message:"successfully fetched order details.",
+        data: orders,
+      });
+    },
+
+
+};
